@@ -118,7 +118,8 @@ class BaseClass extends EventEmitter
         # 是否在ios中打开
         @isIOS = _isIOS
 
-        @template = false
+        @template = new Template()
+        @template._proxy = @
 
         @beforeInit()
         @init()
@@ -135,9 +136,6 @@ class BaseClass extends EventEmitter
 
     # 渲染
     render: (@virtualDomDefine, scope = {})->
-        if !@template
-            @template = new Template()
-            @template._proxy = @
 
         dtd = $.Deferred()
 
@@ -172,10 +170,13 @@ class BaseClass extends EventEmitter
 
 
     destroy: ->
-        @template.destroy() if @template
+        @template.destroy()
 
 
     when: ->
         $.when.apply @, arguments
+
+
+BaseClass.loadPromise = loadPromise
 
 module.exports = BaseClass

@@ -70,11 +70,11 @@ return /******/ (function(modules) { // webpackBootstrap
 
 	mcoreApp.Route = __webpack_require__(17);
 
-	mcoreApp.BaseClass = __webpack_require__(18);
+	mcoreApp.BaseClass = __webpack_require__(20);
 
-	mcoreApp.View = __webpack_require__(19);
+	mcoreApp.View = __webpack_require__(21);
 
-	mcoreApp.http = __webpack_require__(20);
+	mcoreApp.http = __webpack_require__(22);
 
 	module.exports = mcoreApp;
 
@@ -389,14 +389,14 @@ return /******/ (function(modules) { // webpackBootstrap
 		 * @link http://vfasky.com
 		 */
 		'use strict';
-		var EventEmitter, Template, addEvent, diff, each, extend, isArray, isFunction, nextTick, nodeContains, objectKeys, patch, ref, removeEvent,
+		var EventEmitter, Template, addEvent, diff, each, extend, isArray, isFunction, isPlainObject, nextTick, nodeContains, objectKeys, patch, ref, removeEvent,
 		  extend1 = function(child, parent) { for (var key in parent) { if (hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; },
 		  hasProp = {}.hasOwnProperty,
 		  indexOf = [].indexOf || function(item) { for (var i = 0, l = this.length; i < l; i++) { if (i in this && this[i] === item) return i; } return -1; };
 
 		EventEmitter = __webpack_require__(4);
 
-		ref = __webpack_require__(6), extend = ref.extend, nextTick = ref.nextTick, each = ref.each, isFunction = ref.isFunction, isArray = ref.isArray, objectKeys = ref.objectKeys, addEvent = ref.addEvent, removeEvent = ref.removeEvent, nodeContains = ref.nodeContains;
+		ref = __webpack_require__(6), extend = ref.extend, nextTick = ref.nextTick, each = ref.each, isFunction = ref.isFunction, isArray = ref.isArray, isPlainObject = ref.isPlainObject, objectKeys = ref.objectKeys, addEvent = ref.addEvent, removeEvent = ref.removeEvent, nodeContains = ref.nodeContains;
 
 		diff = __webpack_require__(7);
 
@@ -497,16 +497,44 @@ return /******/ (function(modules) { // webpackBootstrap
 		   */
 
 		  Template.prototype.set = function(key, value, doneOrAsync) {
+		    var isChange;
 		    if (doneOrAsync == null) {
 		      doneOrAsync = null;
 		    }
+		    isChange = this.scope[key] !== value;
 		    this.scope[key] = value;
 		    if (this._status === 0) {
 		      return;
 		    }
-		    this.emit('changeScope', this.scope, key, value);
-		    this.emit('change:' + key, value);
+		    if (isChange) {
+		      this.emit('changeScope', this.scope, key, value);
+		      this.emit('change:' + key, value);
+		    }
 		    return this.renderQueue(doneOrAsync);
+		  };
+
+
+		  /*
+		  ## 取值
+		  ```coffee
+		  list = tpl.get 'list'
+		  ```
+		   */
+
+		  Template.prototype.get = function(key, defaultVal) {
+		    if (defaultVal == null) {
+		      defaultVal = null;
+		    }
+		    if (this.scope.hasOwnProperty(key)) {
+		      if (isPlainObject(this.scope[key])) {
+		        return extend(true, {}, this.scope[key]);
+		      } else if (isArray(this.scope[key])) {
+		        return extend(true, [], this.scope[key]);
+		      } else {
+		        return this.scope[key];
+		      }
+		    }
+		    return defaultVal;
 		  };
 
 
@@ -536,29 +564,12 @@ return /******/ (function(modules) { // webpackBootstrap
 
 
 		  /*
-		  ## 取值
-		  ```coffee
-		  list = tpl.get 'list'
-		  ```
-		   */
-
-		  Template.prototype.get = function(key, defaultVal) {
-		    if (defaultVal == null) {
-		      defaultVal = null;
-		    }
-		    if (this.scope.hasOwnProperty(key)) {
-		      return this.scope[key];
-		    }
-		    return defaultVal;
-		  };
-
-
-		  /*
 		  ## 销毁实例
 		  已经插入 DOM Tree 的，会被移除
 		   */
 
 		  Template.prototype.destroy = function() {
+		    this.emit('destroy');
 		    if (this.refs && this.refs.parentNode && this.refs.parentNode.removeChild) {
 		      this.refs.parentNode.removeChild(this.refs);
 		    }
@@ -588,7 +599,7 @@ return /******/ (function(modules) { // webpackBootstrap
 		   */
 
 		  Template.prototype.render = function(virtualDomDefine, scope, doneOrAsync) {
-		    var ix, scopeKeys, scopeLen;
+		    var scopeKeys, scopeLen;
 		    this.virtualDomDefine = virtualDomDefine;
 		    if (scope == null) {
 		      scope = {};
@@ -603,12 +614,12 @@ return /******/ (function(modules) { // webpackBootstrap
 		    if (scopeLen === 0) {
 		      this.renderQueue(doneOrAsync);
 		    } else {
-		      ix = scopeLen - 1;
 		      each(scopeKeys, (function(_this) {
-		        return function(v, k) {
-		          return _this.set(v, scope[v], k === ix && doneOrAsync || null);
+		        return function(v) {
+		          return _this.set(v, scope[v]);
 		        };
 		      })(this));
+		      this.renderQueue(doneOrAsync);
 		    }
 		    return this;
 		  };
@@ -617,6 +628,7 @@ return /******/ (function(modules) { // webpackBootstrap
 		    var patches, scope, virtualDom;
 		    scope = extend(true, this.scope);
 		    virtualDom = this.virtualDomDefine(scope, this).virtualDom;
+		    this._status = 2;
 		    if (this.virtualDom === null) {
 		      this.virtualDom = virtualDom;
 		      this.refs = this.virtualDom.render();
@@ -629,7 +641,7 @@ return /******/ (function(modules) { // webpackBootstrap
 		      this.virtualDom = virtualDom;
 		      patch(this.refs, patches);
 		    }
-		    this._status = 2;
+		    this._status = 3;
 		    this.emit('rendered', this.refs);
 		    if (isFunction(done)) {
 		      return done(this.refs);
@@ -1341,7 +1353,7 @@ return /******/ (function(modules) { // webpackBootstrap
 		        props: propsPatches
 		      });
 		    }
-		    if (!oldNode._component) {
+		    if (!oldNode._component && true !== oldNode._noDiffChild) {
 		      diffChildren(oldNode.children, newNode.children, index, patches, currentPatch);
 		    }
 		  } else {
@@ -1440,6 +1452,11 @@ return /******/ (function(modules) { // webpackBootstrap
 		  var child, currentPatches, i, len;
 		  currentPatches = patches[walker.index];
 		  len = node.childNodes ? node.childNodes.length : 0;
+		  if (node._element) {
+		    if (node._element._noDiffChild || node._element._component) {
+		      len = 0;
+		    }
+		  }
 		  if (node._component) {
 		    len = 0;
 		  }
@@ -1524,10 +1541,12 @@ return /******/ (function(modules) { // webpackBootstrap
 		    if (move.type === 0) {
 		      if (staticNodeList[index] === node.childNodes[index]) {
 		        el = node.childNodes[index];
-		        if (el._element && el._element.destroy) {
-		          el._element.destroy();
+		        if (el) {
+		          if (el._element && el._element.destroy) {
+		            el._element.destroy();
+		          }
+		          node.removeChild(el);
 		        }
-		        node.removeChild(el);
 		      }
 		      staticNodeList.splice(index, 1);
 		    } else if (move.type === 1) {
@@ -1720,7 +1739,9 @@ return /******/ (function(modules) { // webpackBootstrap
 		 * @link http://vfasky.com
 		 */
 		'use strict';
-		var util;
+		var util,
+		  slice = [].slice,
+		  indexOf = [].indexOf || function(item) { for (var i = 0, l = this.length; i < l; i++) { if (i in this && this[i] === item) return i; } return -1; };
 
 		util = __webpack_require__(6);
 
@@ -1736,6 +1757,20 @@ return /******/ (function(modules) { // webpackBootstrap
 		    len = 1;
 		  }
 		  return Number(x).toFixed(len);
+		};
+
+
+		/*
+		## in 是否在指参数中
+		```html
+		<span mc-show="scope.id | in 1 2 3"></span>
+		```
+		 */
+
+		exports['in'] = function() {
+		  var arr, x;
+		  x = arguments[0], arr = 2 <= arguments.length ? slice.call(arguments, 1) : [];
+		  return indexOf.call(arr, x) >= 0;
 		};
 
 
@@ -1854,7 +1889,18 @@ return /******/ (function(modules) { // webpackBootstrap
 		};
 
 		exports['html'] = function(el, value) {
-		  return el.innerHTML = value != null ? value : '';
+		  el.innerHTML = value != null ? value : '';
+		  return el._element._noDiffChild = true;
+		};
+
+		exports['no-diff-child'] = function(el, value) {
+		  return el._element._noDiffChild = value && true || false;
+		};
+
+		exports['selected'] = {
+		  rendered: function(el, value) {
+		    return el.value = value;
+		  }
 		};
 
 
@@ -1955,9 +2001,15 @@ return /******/ (function(modules) { // webpackBootstrap
 		  function Component(el, virtualEl) {
 		    this.el = el;
 		    this.virtualEl = virtualEl != null ? virtualEl : null;
+		    this.template = new Template();
+		    this.template._proxy = this;
+		    this._isInit = false;
+		    this._plus();
 		    this.init();
 		    this.watch();
 		  }
+
+		  Component.prototype._plus = function() {};
 
 		  Component.prototype.init = function() {};
 
@@ -2075,9 +2127,8 @@ return /******/ (function(modules) { // webpackBootstrap
 		    if (doneOrAsync == null) {
 		      doneOrAsync = true;
 		    }
-		    if (!this.template) {
-		      this.template = new Template();
-		      this.template._proxy = this;
+		    if (false === this._isInit) {
+		      this._isInit = true;
 		      this.template.once('rendered', (function(_this) {
 		        return function(refs1) {
 		          _this.refs = refs1;
@@ -2094,7 +2145,8 @@ return /******/ (function(modules) { // webpackBootstrap
 		  };
 
 		  Component.prototype.mount = function() {
-		    return this.el.appendChild(this.refs);
+		    this.el.appendChild(this.refs);
+		    return this.emit('mount', this.refs);
 		  };
 
 		  Component.prototype.set = function() {
@@ -2344,38 +2396,7 @@ return /******/ (function(modules) { // webpackBootstrap
 
 	util = __webpack_require__(14).util;
 
-
-	/**
-	 * 将路径转化为正则
-	 * @author vfasky <vfasky@gmail.com>
-	 *
-	 */
-
-	pathToRegexp = function(path, keys, sensitive, strict) {
-	  var toKeys;
-	  if (keys == null) {
-	    keys = [];
-	  }
-	  if (sensitive == null) {
-	    sensitive = false;
-	  }
-	  if (strict == null) {
-	    strict = false;
-	  }
-	  if (path instanceof RegExp) {
-	    return path;
-	  }
-	  toKeys = function(_, slash, format, key, capture, optional) {
-	    keys.push({
-	      name: key,
-	      optional: !!optional
-	    });
-	    slash = slash || '';
-	    return '' + (optional && '' || slash) + '(?:' + (optional && slash || '') + (format || '') + (capture || (format && '([^/.]+?)' || '([^/]+?)')) + ')' + (optional || '');
-	  };
-	  path = path.concat(strict && '' || '/?').replace(/\/\(/g, '(?:/').replace(/\+/g, '__plus__').replace(/(\/)?(\.)?:(\w+)(?:(\(.*?\)))?(\?)?/g, toKeys).replace(/([\/.])/g, '\\$1').replace(/__plus__/g, '(.+)').replace(/\*/g, '(.*)');
-	  return new RegExp('^' + path + '$', sensitive && '' || 'i');
-	};
+	pathToRegexp = __webpack_require__(18);
 
 
 	/**
@@ -2428,10 +2449,10 @@ return /******/ (function(modules) { // webpackBootstrap
 	 *
 	 */
 
-	Route = function(hashchange, sensitive1, strict1) {
+	Route = function(hashchange, sensitive, strict) {
 	  this.hashchange = hashchange != null ? hashchange : Route.changeByLocationHash;
-	  this.sensitive = sensitive1 != null ? sensitive1 : false;
-	  this.strict = strict1 != null ? strict1 : false;
+	  this.sensitive = sensitive != null ? sensitive : false;
+	  this.strict = strict != null ? strict : false;
 	  this.rule = [];
 	};
 
@@ -2582,6 +2603,411 @@ return /******/ (function(modules) { // webpackBootstrap
 /* 18 */
 /***/ function(module, exports, __webpack_require__) {
 
+	var isarray = __webpack_require__(19)
+
+	/**
+	 * Expose `pathToRegexp`.
+	 */
+	module.exports = pathToRegexp
+	module.exports.parse = parse
+	module.exports.compile = compile
+	module.exports.tokensToFunction = tokensToFunction
+	module.exports.tokensToRegExp = tokensToRegExp
+
+	/**
+	 * The main path matching regexp utility.
+	 *
+	 * @type {RegExp}
+	 */
+	var PATH_REGEXP = new RegExp([
+	  // Match escaped characters that would otherwise appear in future matches.
+	  // This allows the user to escape special characters that won't transform.
+	  '(\\\\.)',
+	  // Match Express-style parameters and un-named parameters with a prefix
+	  // and optional suffixes. Matches appear as:
+	  //
+	  // "/:test(\\d+)?" => ["/", "test", "\d+", undefined, "?", undefined]
+	  // "/route(\\d+)"  => [undefined, undefined, undefined, "\d+", undefined, undefined]
+	  // "/*"            => ["/", undefined, undefined, undefined, undefined, "*"]
+	  '([\\/.])?(?:(?:\\:(\\w+)(?:\\(((?:\\\\.|[^()])+)\\))?|\\(((?:\\\\.|[^()])+)\\))([+*?])?|(\\*))'
+	].join('|'), 'g')
+
+	/**
+	 * Parse a string for the raw tokens.
+	 *
+	 * @param  {String} str
+	 * @return {Array}
+	 */
+	function parse (str) {
+	  var tokens = []
+	  var key = 0
+	  var index = 0
+	  var path = ''
+	  var res
+
+	  while ((res = PATH_REGEXP.exec(str)) != null) {
+	    var m = res[0]
+	    var escaped = res[1]
+	    var offset = res.index
+	    path += str.slice(index, offset)
+	    index = offset + m.length
+
+	    // Ignore already escaped sequences.
+	    if (escaped) {
+	      path += escaped[1]
+	      continue
+	    }
+
+	    // Push the current path onto the tokens.
+	    if (path) {
+	      tokens.push(path)
+	      path = ''
+	    }
+
+	    var prefix = res[2]
+	    var name = res[3]
+	    var capture = res[4]
+	    var group = res[5]
+	    var suffix = res[6]
+	    var asterisk = res[7]
+
+	    var repeat = suffix === '+' || suffix === '*'
+	    var optional = suffix === '?' || suffix === '*'
+	    var delimiter = prefix || '/'
+	    var pattern = capture || group || (asterisk ? '.*' : '[^' + delimiter + ']+?')
+
+	    tokens.push({
+	      name: name || key++,
+	      prefix: prefix || '',
+	      delimiter: delimiter,
+	      optional: optional,
+	      repeat: repeat,
+	      pattern: escapeGroup(pattern)
+	    })
+	  }
+
+	  // Match any characters still remaining.
+	  if (index < str.length) {
+	    path += str.substr(index)
+	  }
+
+	  // If the path exists, push it onto the end.
+	  if (path) {
+	    tokens.push(path)
+	  }
+
+	  return tokens
+	}
+
+	/**
+	 * Compile a string to a template function for the path.
+	 *
+	 * @param  {String}   str
+	 * @return {Function}
+	 */
+	function compile (str) {
+	  return tokensToFunction(parse(str))
+	}
+
+	/**
+	 * Expose a method for transforming tokens into the path function.
+	 */
+	function tokensToFunction (tokens) {
+	  // Compile all the tokens into regexps.
+	  var matches = new Array(tokens.length)
+
+	  // Compile all the patterns before compilation.
+	  for (var i = 0; i < tokens.length; i++) {
+	    if (typeof tokens[i] === 'object') {
+	      matches[i] = new RegExp('^' + tokens[i].pattern + '$')
+	    }
+	  }
+
+	  return function (obj) {
+	    var path = ''
+	    var data = obj || {}
+
+	    for (var i = 0; i < tokens.length; i++) {
+	      var token = tokens[i]
+
+	      if (typeof token === 'string') {
+	        path += token
+
+	        continue
+	      }
+
+	      var value = data[token.name]
+	      var segment
+
+	      if (value == null) {
+	        if (token.optional) {
+	          continue
+	        } else {
+	          throw new TypeError('Expected "' + token.name + '" to be defined')
+	        }
+	      }
+
+	      if (isarray(value)) {
+	        if (!token.repeat) {
+	          throw new TypeError('Expected "' + token.name + '" to not repeat, but received "' + value + '"')
+	        }
+
+	        if (value.length === 0) {
+	          if (token.optional) {
+	            continue
+	          } else {
+	            throw new TypeError('Expected "' + token.name + '" to not be empty')
+	          }
+	        }
+
+	        for (var j = 0; j < value.length; j++) {
+	          segment = encodeURIComponent(value[j])
+
+	          if (!matches[i].test(segment)) {
+	            throw new TypeError('Expected all "' + token.name + '" to match "' + token.pattern + '", but received "' + segment + '"')
+	          }
+
+	          path += (j === 0 ? token.prefix : token.delimiter) + segment
+	        }
+
+	        continue
+	      }
+
+	      segment = encodeURIComponent(value)
+
+	      if (!matches[i].test(segment)) {
+	        throw new TypeError('Expected "' + token.name + '" to match "' + token.pattern + '", but received "' + segment + '"')
+	      }
+
+	      path += token.prefix + segment
+	    }
+
+	    return path
+	  }
+	}
+
+	/**
+	 * Escape a regular expression string.
+	 *
+	 * @param  {String} str
+	 * @return {String}
+	 */
+	function escapeString (str) {
+	  return str.replace(/([.+*?=^!:${}()[\]|\/])/g, '\\$1')
+	}
+
+	/**
+	 * Escape the capturing group by escaping special characters and meaning.
+	 *
+	 * @param  {String} group
+	 * @return {String}
+	 */
+	function escapeGroup (group) {
+	  return group.replace(/([=!:$\/()])/g, '\\$1')
+	}
+
+	/**
+	 * Attach the keys as a property of the regexp.
+	 *
+	 * @param  {RegExp} re
+	 * @param  {Array}  keys
+	 * @return {RegExp}
+	 */
+	function attachKeys (re, keys) {
+	  re.keys = keys
+	  return re
+	}
+
+	/**
+	 * Get the flags for a regexp from the options.
+	 *
+	 * @param  {Object} options
+	 * @return {String}
+	 */
+	function flags (options) {
+	  return options.sensitive ? '' : 'i'
+	}
+
+	/**
+	 * Pull out keys from a regexp.
+	 *
+	 * @param  {RegExp} path
+	 * @param  {Array}  keys
+	 * @return {RegExp}
+	 */
+	function regexpToRegexp (path, keys) {
+	  // Use a negative lookahead to match only capturing groups.
+	  var groups = path.source.match(/\((?!\?)/g)
+
+	  if (groups) {
+	    for (var i = 0; i < groups.length; i++) {
+	      keys.push({
+	        name: i,
+	        prefix: null,
+	        delimiter: null,
+	        optional: false,
+	        repeat: false,
+	        pattern: null
+	      })
+	    }
+	  }
+
+	  return attachKeys(path, keys)
+	}
+
+	/**
+	 * Transform an array into a regexp.
+	 *
+	 * @param  {Array}  path
+	 * @param  {Array}  keys
+	 * @param  {Object} options
+	 * @return {RegExp}
+	 */
+	function arrayToRegexp (path, keys, options) {
+	  var parts = []
+
+	  for (var i = 0; i < path.length; i++) {
+	    parts.push(pathToRegexp(path[i], keys, options).source)
+	  }
+
+	  var regexp = new RegExp('(?:' + parts.join('|') + ')', flags(options))
+
+	  return attachKeys(regexp, keys)
+	}
+
+	/**
+	 * Create a path regexp from string input.
+	 *
+	 * @param  {String} path
+	 * @param  {Array}  keys
+	 * @param  {Object} options
+	 * @return {RegExp}
+	 */
+	function stringToRegexp (path, keys, options) {
+	  var tokens = parse(path)
+	  var re = tokensToRegExp(tokens, options)
+
+	  // Attach keys back to the regexp.
+	  for (var i = 0; i < tokens.length; i++) {
+	    if (typeof tokens[i] !== 'string') {
+	      keys.push(tokens[i])
+	    }
+	  }
+
+	  return attachKeys(re, keys)
+	}
+
+	/**
+	 * Expose a function for taking tokens and returning a RegExp.
+	 *
+	 * @param  {Array}  tokens
+	 * @param  {Array}  keys
+	 * @param  {Object} options
+	 * @return {RegExp}
+	 */
+	function tokensToRegExp (tokens, options) {
+	  options = options || {}
+
+	  var strict = options.strict
+	  var end = options.end !== false
+	  var route = ''
+	  var lastToken = tokens[tokens.length - 1]
+	  var endsWithSlash = typeof lastToken === 'string' && /\/$/.test(lastToken)
+
+	  // Iterate over the tokens and create our regexp string.
+	  for (var i = 0; i < tokens.length; i++) {
+	    var token = tokens[i]
+
+	    if (typeof token === 'string') {
+	      route += escapeString(token)
+	    } else {
+	      var prefix = escapeString(token.prefix)
+	      var capture = token.pattern
+
+	      if (token.repeat) {
+	        capture += '(?:' + prefix + capture + ')*'
+	      }
+
+	      if (token.optional) {
+	        if (prefix) {
+	          capture = '(?:' + prefix + '(' + capture + '))?'
+	        } else {
+	          capture = '(' + capture + ')?'
+	        }
+	      } else {
+	        capture = prefix + '(' + capture + ')'
+	      }
+
+	      route += capture
+	    }
+	  }
+
+	  // In non-strict mode we allow a slash at the end of match. If the path to
+	  // match already ends with a slash, we remove it for consistency. The slash
+	  // is valid at the end of a path match, not in the middle. This is important
+	  // in non-ending mode, where "/test/" shouldn't match "/test//route".
+	  if (!strict) {
+	    route = (endsWithSlash ? route.slice(0, -2) : route) + '(?:\\/(?=$))?'
+	  }
+
+	  if (end) {
+	    route += '$'
+	  } else {
+	    // In non-ending mode, we need the capturing groups to match as much as
+	    // possible by using a positive lookahead to the end or next path segment.
+	    route += strict && endsWithSlash ? '' : '(?=\\/|$)'
+	  }
+
+	  return new RegExp('^' + route, flags(options))
+	}
+
+	/**
+	 * Normalize the given path string, returning a regular expression.
+	 *
+	 * An empty array can be passed in for the keys, which will hold the
+	 * placeholder key descriptions. For example, using `/user/:id`, `keys` will
+	 * contain `[{ name: 'id', delimiter: '/', optional: false, repeat: false }]`.
+	 *
+	 * @param  {(String|RegExp|Array)} path
+	 * @param  {Array}                 [keys]
+	 * @param  {Object}                [options]
+	 * @return {RegExp}
+	 */
+	function pathToRegexp (path, keys, options) {
+	  keys = keys || []
+
+	  if (!isarray(keys)) {
+	    options = keys
+	    keys = []
+	  } else if (!options) {
+	    options = {}
+	  }
+
+	  if (path instanceof RegExp) {
+	    return regexpToRegexp(path, keys, options)
+	  }
+
+	  if (isarray(path)) {
+	    return arrayToRegexp(path, keys, options)
+	  }
+
+	  return stringToRegexp(path, keys, options)
+	}
+
+
+/***/ },
+/* 19 */
+/***/ function(module, exports) {
+
+	module.exports = Array.isArray || function (arr) {
+	  return Object.prototype.toString.call(arr) == '[object Array]';
+	};
+
+
+/***/ },
+/* 20 */
+/***/ function(module, exports, __webpack_require__) {
+
 	
 	/**
 	 *
@@ -2723,7 +3149,8 @@ return /******/ (function(modules) { // webpackBootstrap
 	    this.nextTick = util.nextTick;
 	    this.isWeixinBrowser = _isWeixinBrowser;
 	    this.isIOS = _isIOS;
-	    this.template = false;
+	    this.template = new Template();
+	    this.template._proxy = this;
 	    this.beforeInit();
 	    this.init();
 	    this.watch();
@@ -2740,10 +3167,6 @@ return /******/ (function(modules) { // webpackBootstrap
 	    this.virtualDomDefine = virtualDomDefine;
 	    if (scope == null) {
 	      scope = {};
-	    }
-	    if (!this.template) {
-	      this.template = new Template();
-	      this.template._proxy = this;
 	    }
 	    dtd = $.Deferred();
 	    loadPromise(scope).then((function(_this) {
@@ -2791,9 +3214,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	  };
 
 	  BaseClass.prototype.destroy = function() {
-	    if (this.template) {
-	      return this.template.destroy();
-	    }
+	    return this.template.destroy();
 	  };
 
 	  BaseClass.prototype.when = function() {
@@ -2804,11 +3225,13 @@ return /******/ (function(modules) { // webpackBootstrap
 
 	})(EventEmitter);
 
+	BaseClass.loadPromise = loadPromise;
+
 	module.exports = BaseClass;
 
 
 /***/ },
-/* 19 */
+/* 21 */
 /***/ function(module, exports, __webpack_require__) {
 
 	
@@ -2834,12 +3257,16 @@ return /******/ (function(modules) { // webpackBootstrap
 	    this.$el = $el;
 	    this.app = app;
 	    View.__super__.constructor.call(this);
+	    this._plus();
+	    this.el = this.$el[0];
 	    this.once('rendered', (function(_this) {
 	      return function(refs) {
-	        return _this.$el[0].appendChild(refs);
+	        return _this.el.appendChild(refs);
 	      };
 	    })(this));
 	  }
+
+	  View.prototype._plus = function() {};
 
 	  View.prototype.setTitle = function(title) {
 	    var $iframe;
@@ -2878,13 +3305,13 @@ return /******/ (function(modules) { // webpackBootstrap
 
 	  return View;
 
-	})(__webpack_require__(18));
+	})(__webpack_require__(20));
 
 	module.exports = View;
 
 
 /***/ },
-/* 20 */
+/* 22 */
 /***/ function(module, exports, __webpack_require__) {
 
 	

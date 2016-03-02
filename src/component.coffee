@@ -51,8 +51,16 @@ class Component extends EventEmitter
     ## @el 真实的 DOM
     ## @virtualEl 虚拟 el
     constructor: (@el, @virtualEl = null)->
+        @template = new Template()
+        @template._proxy = @
+
+        @_isInit = false
+        @_plus()
+
         @init()
         @watch()
+
+    _plus: ->
 
     ## 初始化
     init: ->
@@ -156,9 +164,8 @@ class Component extends EventEmitter
      - {Null | Function | Boolean} doneOrAsync 渲染成功时回调或者马上渲染，不放入队列
     ###
     render: (@virtualDomDefine, scope = {}, doneOrAsync = true)->
-        if !@template
-            @template = new Template()
-            @template._proxy = @
+        if false == @_isInit
+            @_isInit = true
             @template.once 'rendered', (@refs)=> @mount()
             @template.on 'rendered', (refs)=> @emit 'rendered', refs
 
@@ -169,6 +176,7 @@ class Component extends EventEmitter
     ## 插入渲染完成的DOM
     mount: ->
         @el.appendChild @refs
+        @emit 'mount', @refs
 
     # ## 更新 `scope` 同 Template 方法
     set: ->

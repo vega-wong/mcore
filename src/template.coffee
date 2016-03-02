@@ -9,7 +9,7 @@
 EventEmitter = require './eventEmitter'
 
 {
-    extend, nextTick, each, isFunction, isArray,
+    extend, nextTick, each, isFunction, isArray, isPlainObject,
     objectKeys, addEvent, removeEvent, nodeContains
 } = require './util'
 
@@ -130,12 +130,33 @@ class Template extends EventEmitter
     ```
     ###
     set: (key, value, doneOrAsync = null)->
+        isChange = @scope[key] != value
         @scope[key] = value
         return if @_status == 0
 
-        @emit 'changeScope', @scope, key, value
-        @emit 'change:' + key, value
+        if isChange
+            @emit 'changeScope', @scope, key, value
+            @emit 'change:' + key, value
         @renderQueue doneOrAsync
+
+
+    ###
+    ## 取值
+    ```coffee
+    list = tpl.get 'list'
+    ```
+    ###
+    get: (key, defaultVal = null)->
+        if @scope.hasOwnProperty(key)
+            if isPlainObject(@scope[key])
+                return extend true, {}, @scope[key]
+            else if isArray(@scope[key])
+                return extend true, [], @scope[key]
+            else
+                return @scope[key]
+
+        return defaultVal
+
 
 
     ###
@@ -158,22 +179,12 @@ class Template extends EventEmitter
 
 
     ###
-    ## 取值
-    ```coffee
-    list = tpl.get 'list'
-    ```
-    ###
-    get: (key, defaultVal = null)->
-        if @scope.hasOwnProperty(key)
-            return @scope[key]
-        return defaultVal
-
-
-    ###
     ## 销毁实例
     已经插入 DOM Tree 的，会被移除
     ###
     destroy: ->
+        @emit 'destroy'
+        
         if @refs and @refs.parentNode and @refs.parentNode.removeChild
             @refs.parentNode.removeChild @refs
 
@@ -208,9 +219,9 @@ class Template extends EventEmitter
         if scopeLen == 0
             @renderQueue doneOrAsync
         else
-            ix = scopeLen - 1
-            each scopeKeys, (v, k)=>
-                @set v, scope[v], k == ix and doneOrAsync or null
+            #ix = scopeLen - 1
+            each scopeKeys, (v)=> @set v, scope[v]
+            @renderQueue doneOrAsync
 
         this
 
@@ -220,6 +231,7 @@ class Template extends EventEmitter
         scope = extend true, @scope
 
         {virtualDom} = @virtualDomDefine scope, @
+        @_status = 2
         ## 未渲染，不用对比
         if @virtualDom == null
             @virtualDom = virtualDom
@@ -235,9 +247,10 @@ class Template extends EventEmitter
             ## 更新dom
             patch @refs, patches
 
-        @_status = 2
+        @_status = 3
         @emit 'rendered', @refs
-        done @refs if isFunction done
+        if isFunction done
+            done @refs
 
 
     ## 渲染队列

@@ -291,14 +291,14 @@ return /******/ (function(modules) { // webpackBootstrap
 	 * @link http://vfasky.com
 	 */
 	'use strict';
-	var EventEmitter, Template, addEvent, diff, each, extend, isArray, isFunction, nextTick, nodeContains, objectKeys, patch, ref, removeEvent,
+	var EventEmitter, Template, addEvent, diff, each, extend, isArray, isFunction, isPlainObject, nextTick, nodeContains, objectKeys, patch, ref, removeEvent,
 	  extend1 = function(child, parent) { for (var key in parent) { if (hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; },
 	  hasProp = {}.hasOwnProperty,
 	  indexOf = [].indexOf || function(item) { for (var i = 0, l = this.length; i < l; i++) { if (i in this && this[i] === item) return i; } return -1; };
 
 	EventEmitter = __webpack_require__(4);
 
-	ref = __webpack_require__(6), extend = ref.extend, nextTick = ref.nextTick, each = ref.each, isFunction = ref.isFunction, isArray = ref.isArray, objectKeys = ref.objectKeys, addEvent = ref.addEvent, removeEvent = ref.removeEvent, nodeContains = ref.nodeContains;
+	ref = __webpack_require__(6), extend = ref.extend, nextTick = ref.nextTick, each = ref.each, isFunction = ref.isFunction, isArray = ref.isArray, isPlainObject = ref.isPlainObject, objectKeys = ref.objectKeys, addEvent = ref.addEvent, removeEvent = ref.removeEvent, nodeContains = ref.nodeContains;
 
 	diff = __webpack_require__(7);
 
@@ -399,16 +399,44 @@ return /******/ (function(modules) { // webpackBootstrap
 	   */
 
 	  Template.prototype.set = function(key, value, doneOrAsync) {
+	    var isChange;
 	    if (doneOrAsync == null) {
 	      doneOrAsync = null;
 	    }
+	    isChange = this.scope[key] !== value;
 	    this.scope[key] = value;
 	    if (this._status === 0) {
 	      return;
 	    }
-	    this.emit('changeScope', this.scope, key, value);
-	    this.emit('change:' + key, value);
+	    if (isChange) {
+	      this.emit('changeScope', this.scope, key, value);
+	      this.emit('change:' + key, value);
+	    }
 	    return this.renderQueue(doneOrAsync);
+	  };
+
+
+	  /*
+	  ## 取值
+	  ```coffee
+	  list = tpl.get 'list'
+	  ```
+	   */
+
+	  Template.prototype.get = function(key, defaultVal) {
+	    if (defaultVal == null) {
+	      defaultVal = null;
+	    }
+	    if (this.scope.hasOwnProperty(key)) {
+	      if (isPlainObject(this.scope[key])) {
+	        return extend(true, {}, this.scope[key]);
+	      } else if (isArray(this.scope[key])) {
+	        return extend(true, [], this.scope[key]);
+	      } else {
+	        return this.scope[key];
+	      }
+	    }
+	    return defaultVal;
 	  };
 
 
@@ -438,29 +466,12 @@ return /******/ (function(modules) { // webpackBootstrap
 
 
 	  /*
-	  ## 取值
-	  ```coffee
-	  list = tpl.get 'list'
-	  ```
-	   */
-
-	  Template.prototype.get = function(key, defaultVal) {
-	    if (defaultVal == null) {
-	      defaultVal = null;
-	    }
-	    if (this.scope.hasOwnProperty(key)) {
-	      return this.scope[key];
-	    }
-	    return defaultVal;
-	  };
-
-
-	  /*
 	  ## 销毁实例
 	  已经插入 DOM Tree 的，会被移除
 	   */
 
 	  Template.prototype.destroy = function() {
+	    this.emit('destroy');
 	    if (this.refs && this.refs.parentNode && this.refs.parentNode.removeChild) {
 	      this.refs.parentNode.removeChild(this.refs);
 	    }
@@ -490,7 +501,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	   */
 
 	  Template.prototype.render = function(virtualDomDefine, scope, doneOrAsync) {
-	    var ix, scopeKeys, scopeLen;
+	    var scopeKeys, scopeLen;
 	    this.virtualDomDefine = virtualDomDefine;
 	    if (scope == null) {
 	      scope = {};
@@ -505,12 +516,12 @@ return /******/ (function(modules) { // webpackBootstrap
 	    if (scopeLen === 0) {
 	      this.renderQueue(doneOrAsync);
 	    } else {
-	      ix = scopeLen - 1;
 	      each(scopeKeys, (function(_this) {
-	        return function(v, k) {
-	          return _this.set(v, scope[v], k === ix && doneOrAsync || null);
+	        return function(v) {
+	          return _this.set(v, scope[v]);
 	        };
 	      })(this));
+	      this.renderQueue(doneOrAsync);
 	    }
 	    return this;
 	  };
@@ -519,6 +530,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	    var patches, scope, virtualDom;
 	    scope = extend(true, this.scope);
 	    virtualDom = this.virtualDomDefine(scope, this).virtualDom;
+	    this._status = 2;
 	    if (this.virtualDom === null) {
 	      this.virtualDom = virtualDom;
 	      this.refs = this.virtualDom.render();
@@ -531,7 +543,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	      this.virtualDom = virtualDom;
 	      patch(this.refs, patches);
 	    }
-	    this._status = 2;
+	    this._status = 3;
 	    this.emit('rendered', this.refs);
 	    if (isFunction(done)) {
 	      return done(this.refs);
@@ -1243,7 +1255,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	        props: propsPatches
 	      });
 	    }
-	    if (!oldNode._component) {
+	    if (!oldNode._component && true !== oldNode._noDiffChild) {
 	      diffChildren(oldNode.children, newNode.children, index, patches, currentPatch);
 	    }
 	  } else {
@@ -1342,6 +1354,11 @@ return /******/ (function(modules) { // webpackBootstrap
 	  var child, currentPatches, i, len;
 	  currentPatches = patches[walker.index];
 	  len = node.childNodes ? node.childNodes.length : 0;
+	  if (node._element) {
+	    if (node._element._noDiffChild || node._element._component) {
+	      len = 0;
+	    }
+	  }
 	  if (node._component) {
 	    len = 0;
 	  }
@@ -1426,10 +1443,12 @@ return /******/ (function(modules) { // webpackBootstrap
 	    if (move.type === 0) {
 	      if (staticNodeList[index] === node.childNodes[index]) {
 	        el = node.childNodes[index];
-	        if (el._element && el._element.destroy) {
-	          el._element.destroy();
+	        if (el) {
+	          if (el._element && el._element.destroy) {
+	            el._element.destroy();
+	          }
+	          node.removeChild(el);
 	        }
-	        node.removeChild(el);
 	      }
 	      staticNodeList.splice(index, 1);
 	    } else if (move.type === 1) {
@@ -1622,7 +1641,9 @@ return /******/ (function(modules) { // webpackBootstrap
 	 * @link http://vfasky.com
 	 */
 	'use strict';
-	var util;
+	var util,
+	  slice = [].slice,
+	  indexOf = [].indexOf || function(item) { for (var i = 0, l = this.length; i < l; i++) { if (i in this && this[i] === item) return i; } return -1; };
 
 	util = __webpack_require__(6);
 
@@ -1638,6 +1659,20 @@ return /******/ (function(modules) { // webpackBootstrap
 	    len = 1;
 	  }
 	  return Number(x).toFixed(len);
+	};
+
+
+	/*
+	## in 是否在指参数中
+	```html
+	<span mc-show="scope.id | in 1 2 3"></span>
+	```
+	 */
+
+	exports['in'] = function() {
+	  var arr, x;
+	  x = arguments[0], arr = 2 <= arguments.length ? slice.call(arguments, 1) : [];
+	  return indexOf.call(arr, x) >= 0;
 	};
 
 
@@ -1756,7 +1791,18 @@ return /******/ (function(modules) { // webpackBootstrap
 	};
 
 	exports['html'] = function(el, value) {
-	  return el.innerHTML = value != null ? value : '';
+	  el.innerHTML = value != null ? value : '';
+	  return el._element._noDiffChild = true;
+	};
+
+	exports['no-diff-child'] = function(el, value) {
+	  return el._element._noDiffChild = value && true || false;
+	};
+
+	exports['selected'] = {
+	  rendered: function(el, value) {
+	    return el.value = value;
+	  }
 	};
 
 
@@ -1857,9 +1903,15 @@ return /******/ (function(modules) { // webpackBootstrap
 	  function Component(el, virtualEl) {
 	    this.el = el;
 	    this.virtualEl = virtualEl != null ? virtualEl : null;
+	    this.template = new Template();
+	    this.template._proxy = this;
+	    this._isInit = false;
+	    this._plus();
 	    this.init();
 	    this.watch();
 	  }
+
+	  Component.prototype._plus = function() {};
 
 	  Component.prototype.init = function() {};
 
@@ -1977,9 +2029,8 @@ return /******/ (function(modules) { // webpackBootstrap
 	    if (doneOrAsync == null) {
 	      doneOrAsync = true;
 	    }
-	    if (!this.template) {
-	      this.template = new Template();
-	      this.template._proxy = this;
+	    if (false === this._isInit) {
+	      this._isInit = true;
 	      this.template.once('rendered', (function(_this) {
 	        return function(refs1) {
 	          _this.refs = refs1;
@@ -1996,7 +2047,8 @@ return /******/ (function(modules) { // webpackBootstrap
 	  };
 
 	  Component.prototype.mount = function() {
-	    return this.el.appendChild(this.refs);
+	    this.el.appendChild(this.refs);
+	    return this.emit('mount', this.refs);
 	  };
 
 	  Component.prototype.set = function() {
